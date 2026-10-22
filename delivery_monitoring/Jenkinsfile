@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    environment {
+        SRC = '/Users/rahulkl/devops-exercises/delivery_monitoring'
+    }
+    stages {
+        stage('Pre-check Docker') {
+            steps {
+                sh 'docker --version'
+                sh 'docker info > /dev/null'
+            }
+        }
+        stage('Clean old containers') {
+            steps {
+                sh 'docker rm -f delivery_metrics prometheus grafana || true'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sh 'cd $SRC && docker build -t delivery_metrics .'
+            }
+        }
+        stage('Run Application') {
+            steps {
+                sh 'docker run -d -p 8000:8000 --name delivery_metrics delivery_metrics'
+            }
+        }
+        stage('Run Prometheus & Grafana') {
+            steps {
+                sh '''
+                docker run -d --name prometheus -p 9090:9090 \
+                  -v $SRC/prometheus.yml:/etc/prometheus/prometheus.yml \
+                  -v $SRC/alert_rules.yml:/etc/prometheus/alert_rules.yml \
+                  prom/prometheus
+                docker run -d --name grafana -p 3000:3000 grafana/grafana
+                '''
+            }
+        }
+    }
+}
